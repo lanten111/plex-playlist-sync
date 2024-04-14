@@ -73,6 +73,40 @@ while True:
 
     logging.info("Spotify playlist sync complete")
 
+
+    ########## YT MUSIC SYNC ##########
+
+    logging.info("Starting ytmusic playlist sync")
+
+    SP_AUTHSUCCESS = False
+
+    if (
+        userInputs.spotipy_client_id
+        and userInputs.spotipy_client_secret
+        and userInputs.spotify_user_id
+    ):
+        try:
+            sp = spotipy.Spotify(
+                auth_manager=SpotifyClientCredentials(
+                    userInputs.spotipy_client_id,
+                    userInputs.spotipy_client_secret,
+                )
+            )
+            SP_AUTHSUCCESS = True
+        except:
+            logging.info("Spotify Authorization error, skipping spotify sync")
+
+    else:
+        logging.info(
+            "Missing one or more Spotify Authorization Variables, skipping"
+            " spotify sync"
+        )
+
+    if SP_AUTHSUCCESS:
+        spotify_playlist_sync(sp, plex, userInputs)
+
+    logging.info("Spotify playlist sync complete")
+
     ########## DEEZER SYNC ##########
 
     logging.info("Starting Deezer playlist sync")
