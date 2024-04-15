@@ -6,10 +6,12 @@ import deezer
 import spotipy
 from plexapi.server import PlexServer
 from spotipy.oauth2 import SpotifyClientCredentials
+from ytmusicapi import YTMusic
 
 from utils.deezer import deezer_playlist_sync
 from utils.helperClasses import UserInputs
 from utils.spotify import spotify_playlist_sync
+from utils.ytmusic import ytmusic_playlist_sync
 
 # Read ENV variables
 userInputs = UserInputs(
@@ -30,51 +32,47 @@ userInputs = UserInputs(
 while True:
     logging.info("Starting playlist sync")
 
+    PL_AUTHSUCCESS = False
     if userInputs.plex_url and userInputs.plex_token:
         try:
             plex = PlexServer(userInputs.plex_url, userInputs.plex_token)
+            PL_AUTHSUCCESS = True
         except:
             logging.error("Plex Authorization error")
             break
     else:
         logging.error("Missing Plex Authorization Variables")
-        break
+        # break
 
-    ########## SPOTIFY SYNC ##########
+    ########## YT MUSIC SYNC ##########
 
-    logging.info("Starting Spotify playlist sync")
+    logging.info("Starting youtube music playlist sync")
 
-    SP_AUTHSUCCESS = False
+    YT_AUTHSUCCESS = False
 
+    authfile = r"C:\Users\Muhumbulo\PycharmProjects\plex-playlist-sync\plex-playlist-sync\config\oauth.json"
     if (
-        userInputs.spotipy_client_id
-        and userInputs.spotipy_client_secret
-        and userInputs.spotify_user_id
+            os.path.exists(authfile)
     ):
         try:
-            sp = spotipy.Spotify(
-                auth_manager=SpotifyClientCredentials(
-                    userInputs.spotipy_client_id,
-                    userInputs.spotipy_client_secret,
-                )
-            )
-            SP_AUTHSUCCESS = True
+            yt = ytmusic = YTMusic(authfile)
+            YT_AUTHSUCCESS = True
         except:
-            logging.info("Spotify Authorization error, skipping spotify sync")
+            logging.info("youtube Authorization error, skipping spotify sync")
 
     else:
         logging.info(
-            "Missing one or more Spotify Authorization Variables, skipping"
-            " spotify sync"
+            "Missing one or more youtube Authorization Variables, skipping"
+            " youtube sync"
         )
 
-    if SP_AUTHSUCCESS:
-        spotify_playlist_sync(sp, plex, userInputs)
+    if YT_AUTHSUCCESS:
+        ytmusic_playlist_sync(yt)
 
     logging.info("Spotify playlist sync complete")
 
 
-    ########## YT MUSIC SYNC ##########
+    ########## SPOTIFY SYNC ##########
 
     logging.info("Starting ytmusic playlist sync")
 

@@ -1,3 +1,4 @@
 spotipy>=2.18.0
 plexapi==4.11.2
-deezer-python>=2.3.0
+
+ytmusicapi~=1.6.0
