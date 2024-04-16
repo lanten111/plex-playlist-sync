@@ -6,6 +6,7 @@ from plexapi.server import PlexServer
 
 from .helperClasses import Playlist, Track, UserInputs
 from .plex import update_or_create_plex_playlist
+from .jellyfin import update_or_create_jellyfin_playlist
 
 
 def _get_yt_user_playlists(yt) -> List[Playlist]:
@@ -55,13 +56,14 @@ def _get_yt_tracks_from_playlist(yt, playlist: Playlist) -> List[Track]:
     return tracks
 
 
-def ytmusic_playlist_sync(yt) -> None:
+def ytmusic_playlist_sync(yt, plex, jellyfin, userInputs) -> None:
     playlists = _get_yt_user_playlists(yt)
     if playlists:
         for playlist in playlists:
-            tracks = _get_yt_tracks_from_playlist(
-                yt, playlist
-            )
-            # update_or_create_plex_playlist(plex, playlist, tracks, userInputs)
+            tracks = _get_yt_tracks_from_playlist(yt, playlist)
+            if plex is not None:
+                update_or_create_plex_playlist(plex, playlist, tracks, userInputs)
+            if jellyfin is not None:
+                update_or_create_jellyfin_playlist(jellyfin, playlist, tracks, userInputs)
     else:
         logging.error("No spotify playlists found for given user")
