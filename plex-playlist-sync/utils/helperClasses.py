@@ -35,3 +35,6 @@ class UserInputs:
 
     deezer_user_id: str
     deezer_playlist_ids: str
+
+    jellyfin_url: str
+    jellyfin_token: str

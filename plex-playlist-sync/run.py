@@ -1,9 +1,12 @@
 import logging
 import os
 import time
+import traceback
 
 import deezer
 import spotipy
+from jellyfin_api_client import AuthenticatedClient
+from jellyfinapi.jellyfinapi_client import JellyfinapiClient
 from plexapi.server import PlexServer
 from spotipy.oauth2 import SpotifyClientCredentials
 from ytmusicapi import YTMusic
@@ -28,9 +31,14 @@ userInputs = UserInputs(
     spotify_user_id=os.getenv("SPOTIFY_USER_ID"),
     deezer_user_id=os.getenv("DEEZER_USER_ID"),
     deezer_playlist_ids=os.getenv("DEEZER_PLAYLIST_ID"),
+    jellyfin_url=os.getenv("JELLYFIN_URL", "http://192.168.1.5:8096"),
+    jellyfin_token=os.getenv("JELLYFIN_TOKEn", "7cf21b149808479fa87a5836ea498d9d"),
 )
 while True:
     logging.info("Starting playlist sync")
+
+
+    ########## PLEX MUSIC SYNC ##########
 
     PL_AUTHSUCCESS = False
     if userInputs.plex_url and userInputs.plex_token:
@@ -39,10 +47,21 @@ while True:
             PL_AUTHSUCCESS = True
         except:
             logging.error("Plex Authorization error")
-            break
     else:
         logging.error("Missing Plex Authorization Variables")
-        # break
+
+    ########## JELLYFIN MUSIC SYNC ##########
+
+    JL_AUTHSUCCESS = False
+    if userInputs.jellyfin_url and userInputs.jellyfin_token:
+        try:
+            jellyfin = JellyfinapiClient(x_emby_token=userInputs.jellyfin_token, server_url=userInputs.jellyfin_url)
+            JL_AUTHSUCCESS = True
+        except:
+            logging.error(traceback.format_exc())
+    else:
+        logging.error("Missing Plex Authorization Variables")
+
 
     ########## YT MUSIC SYNC ##########
 
@@ -67,7 +86,15 @@ while True:
         )
 
     if YT_AUTHSUCCESS:
-        ytmusic_playlist_sync(yt)
+        if PL_AUTHSUCCESS and JL_AUTHSUCCESS:
+            ytmusic_playlist_sync(yt, plex, jellyfin, userInputs)
+        elif PL_AUTHSUCCESS and JL_AUTHSUCCESS is False:
+            ytmusic_playlist_sync(yt, plex, None, userInputs)
+        elif JL_AUTHSUCCESS and PL_AUTHSUCCESS is False:
+            ytmusic_playlist_sync(yt, None, jellyfin, userInputs)
+        else:
+            logging.error("Plex or jellyfin auth must be present")
+            break
 
     logging.info("Spotify playlist sync complete")
 
