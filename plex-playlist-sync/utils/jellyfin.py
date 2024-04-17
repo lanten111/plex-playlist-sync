@@ -3,6 +3,7 @@ import json
 import logging
 import pathlib
 import sys
+from array import array
 from difflib import SequenceMatcher
 from typing import List
 
@@ -82,22 +83,21 @@ def _get_available_jellyfin_tracks(jellyfin, tracks: List[Track]) -> List:
                     if hasattr(s, 'album_artist') is not None:
                         artist_similarity = SequenceMatcher(None, s.album_artist.lower(), track.artist.lower()).quick_ratio()
                         if artist_similarity >= 0.9:
-                            jellyfin_tracks.extend(s.item_id)
+                            jellyfin_tracks.append(s.id)
                             found = True
                             break
 
                     if s.album is not None:
-                        album_similarity = SequenceMatcher( None, s.album.lower(), track.album.lower()).quick_ratio()
+                        album_similarity = SequenceMatcher(None, s.album.lower(), track.album.lower()).quick_ratio()
                         if album_similarity >= 0.9:
-                            jellyfin_tracks.extend(s.item_id)
+                            jellyfin_tracks.append(s.id)
                             found = True
                             break
 
                 except IndexError:
                     logging.info(
                         "Looks like plex mismatched the search for %s,"
-                        " retrying with next result",
-                        track.title,
+                        " retrying with next result"
                     )
         if not found:
             missing_tracks.append(track)
@@ -140,6 +140,12 @@ def sync_list_with_jellyfin_playlist(client = None, title = None, inputList = No
     else:
         print(response)
 
+def _update_playlist(jellyfin, playlistId, tracks, user_id):
+    batch_size = 100
+    for i in range(0, len(tracks), batch_size):
+        batch = tracks[i:i + batch_size]
+        jellyfin.playlists.add_to_playlist(playlistId, ",".join(batch), user_id)
+        # logging.info(playlist.name + "was updated successfully")
 
 def update_or_create_jellyfin_playlist(
     jellyfin,
@@ -152,13 +158,25 @@ def update_or_create_jellyfin_playlist(
     user_id = next((user.id for user in users if user.name == userInputs.jellyfin_user), None)
     if user_id is None:
         raise ValueError("User not found")
+
     available_tracks, missing_tracks = _get_available_jellyfin_tracks(jellyfin, tracks)
     if available_tracks:
         search = jellyfin.search.get(playlist.name, None, None, user_id, "Playlist", None, "Audio", None, None, None, None, None,
                                      None, False, True, False, False, True)
-        if search:
+        if search and len(search.search_hints) > 0:
             for s in search.search_hints:
-                logging.info(s.name)
+                # jellyfin search is not strict, continue to next index if playlist name does no match
+                track_similarity = SequenceMatcher(None, s.name.lower(), playlist.name.lower()).quick_ratio()
+                if track_similarity >= 0.9:
+                    _update_playlist(jellyfin, s.id, available_tracks, user_id)
+                else:
+                    continue
+        else:
+            playlist_id = jellyfin.playlists.create_playlist(playlist.name, "", user_id, "Audio")
+            _update_playlist(jellyfin, playlist_id.id, available_tracks, user_id)
+    else:
+        logging.info("No tracks were found")
+
         # try:
         #     plex_playlist = _update_jellyfin_playlist(
         #         jellyfin=jellyfin,

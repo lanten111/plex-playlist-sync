@@ -74,7 +74,7 @@ while True:
             os.path.exists(userInputs.yt_music_auth_file)
     ):
         try:
-            yt = ytmusic = YTMusic(authfile)
+            yt = ytmusic = YTMusic(userInputs.yt_music_auth_file)
             YT_AUTHSUCCESS = True
         except:
             logging.info("youtube Authorization error, skipping spotify sync")
