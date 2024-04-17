@@ -38,4 +38,3 @@ class UserInputs:
 
     jellyfin_url: str
     jellyfin_token: str
-    jellyfin_user: str
