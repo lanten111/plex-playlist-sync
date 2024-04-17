@@ -31,8 +31,9 @@ userInputs = UserInputs(
     spotify_user_id=os.getenv("SPOTIFY_USER_ID"),
     deezer_user_id=os.getenv("DEEZER_USER_ID"),
     deezer_playlist_ids=os.getenv("DEEZER_PLAYLIST_ID"),
-    jellyfin_url=os.getenv("JELLYFIN_URL", ""),
-    jellyfin_token=os.getenv("JELLYFIN_TOKEn", ""),
+    jellyfin_url=os.getenv("JELLYFIN_URL"),
+    jellyfin_token=os.getenv("JELLYFIN_TOKEN"),
+    jellyfin_user=os.getenv("JELLYFIN_USER"),
 )
 while True:
     logging.info("Starting playlist sync")
