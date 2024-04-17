@@ -70,9 +70,8 @@ while True:
 
     YT_AUTHSUCCESS = False
 
-    authfile = r"C:\Users\Muhumbulo\PycharmProjects\plex-playlist-sync\plex-playlist-sync\config\oauth.json"
     if (
-            os.path.exists(authfile)
+            os.path.exists(userInputs.yt_music_auth_file)
     ):
         try:
             yt = ytmusic = YTMusic(authfile)
