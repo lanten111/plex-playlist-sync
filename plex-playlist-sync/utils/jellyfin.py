@@ -3,13 +3,10 @@ import json
 import logging
 import pathlib
 import sys
-from array import array
 from difflib import SequenceMatcher
 from typing import List
 
 import plexapi
-from plexapi.exceptions import BadRequest, NotFound
-from plexapi.server import PlexServer
 
 from .helperClasses import Playlist, Track, UserInputs
 
@@ -57,25 +54,15 @@ def _get_available_jellyfin_tracks(jellyfin, tracks: List[Track]) -> List:
     for track in tracks:
         search = []
         try:
-            search = jellyfin.search.get(track.title, None, None, None, None, None, "Audio", None, None, None, None, None, None, False, True, False, False, True)
-        except BadRequest:
+            if track.title != "":
+                search = jellyfin.search.get(track.title, None, None, None, "Audio", None, "Audio", None, None, None, None, None, None, False, True, False, False, True)
+        except Exception:
             logging.info("failed to search %s on jellyfin", track.title)
-        # if (not search) or len(track.title.split("(")) > 1:
-        #     logging.info("retrying search for %s", track.title)
-        #     try:
-        #         # search += plex.search(
-        #         #     track.title.split("(")[0], mediatype="track", limit=5
-        #         # )
-        #         logging.info("search for %s successful", track.title)
-        #     except BadRequest:
-        #         logging.info("unable to query %s on plex", track.title)
-
         found = False
         if search:
             for s in search.search_hints:
                 try:
-                    logging.info(s.name)
-                    #jellyfin search is not strict, continue to next index if track does no match
+                    #jellyfin search is not strict, continue to next index if track name does no match
                     track_similarity = SequenceMatcher(None, s.name.lower(), track.title.lower()).quick_ratio()
                     if track_similarity <= 0.9:
                         continue
@@ -96,7 +83,7 @@ def _get_available_jellyfin_tracks(jellyfin, tracks: List[Track]) -> List:
 
                 except IndexError:
                     logging.info(
-                        "Looks like plex mismatched the search for %s,"
+                        "Looks like jellyfin mismatched the search for %s,"
                         " retrying with next result"
                     )
         if not found:
@@ -145,7 +132,6 @@ def _update_playlist(jellyfin, playlistId, tracks, user_id):
     for i in range(0, len(tracks), batch_size):
         batch = tracks[i:i + batch_size]
         jellyfin.playlists.add_to_playlist(playlistId, ",".join(batch), user_id)
-        # logging.info(playlist.name + "was updated successfully")
 
 def update_or_create_jellyfin_playlist(
     jellyfin,
@@ -169,69 +155,38 @@ def update_or_create_jellyfin_playlist(
                 track_similarity = SequenceMatcher(None, s.name.lower(), playlist.name.lower()).quick_ratio()
                 if track_similarity >= 0.9:
                     _update_playlist(jellyfin, s.id, available_tracks, user_id)
+                    logging.info("Updated playlist %s with summary and poster", playlist.name)
                 else:
                     continue
         else:
             playlist_id = jellyfin.playlists.create_playlist(playlist.name, "", user_id, "Audio")
+            logging.info("Created playlist %s", playlist.name)
             _update_playlist(jellyfin, playlist_id.id, available_tracks, user_id)
+            logging.info("Updated playlist %s with summary and poster", playlist.name)
     else:
-        logging.info("No tracks were found")
+        logging.info(
+            "No songs for playlist %s were found on jellyfin, skipping the"
+            " playlist creation",
+            playlist.name,
+        )
 
-        # try:
-        #     plex_playlist = _update_jellyfin_playlist(
-        #         jellyfin=jellyfin,
-        #         available_tracks=available_tracks,
-        #         playlist=playlist,
-        #         append=userInputs.append_instead_of_sync,
-        #     )
-        #     logging.info("Updated playlist %s", playlist.name)
-        # except NotFound:
-        #     plex.createPlaylist(title=playlist.name, items=available_tracks)
-        #     logging.info("Created playlist %s", playlist.name)
-        #     plex_playlist = plex.playlist(playlist.name)
-        #
-        # if playlist.description and userInputs.add_playlist_description:
-        #     try:
-        #         plex_playlist.edit(summary=playlist.description)
-        #     except:
-        #         logging.info(
-        #             "Failed to update description for playlist %s",
-        #             playlist.name,
-        #         )
-        # if playlist.poster and userInputs.add_playlist_poster:
-        #     try:
-        #         plex_playlist.uploadPoster(url=playlist.poster)
-        #     except:
-        #         logging.info(
-        #             "Failed to update poster for playlist %s", playlist.name
-        #         )
-        # logging.info(
-        #     "Updated playlist %s with summary and poster", playlist.name
-        # )
-
-    # else:
-    #     logging.info(
-    #         "No songs for playlist %s were found on plex, skipping the"
-    #         " playlist creation",
-    #         playlist.name,
-    #     )
-    # if missing_tracks and userInputs.write_missing_as_csv:
-    #     try:
-    #         _write_csv(missing_tracks, playlist.name)
-    #         logging.info("Missing tracks written to %s.csv", playlist.name)
-    #     except:
-    #         logging.info(
-    #             "Failed to write missing tracks for %s, likely permission"
-    #             " issue",
-    #             playlist.name,
-    #         )
-    # if (not missing_tracks) and userInputs.write_missing_as_csv:
-    #     try:
-    #         # Delete playlist created in prev run if no tracks are missing now
-    #         _delete_csv(playlist.name)
-    #         logging.info("Deleted old %s.csv", playlist.name)
-    #     except:
-    #         logging.info(
-    #             "Failed to delete %s.csv, likely permission issue",
-    #             playlist.name,
-    #         )
+    if missing_tracks and userInputs.write_missing_as_csv:
+        try:
+            _write_csv(missing_tracks, playlist.name)
+            logging.info("Missing tracks written to %s.csv", playlist.name)
+        except:
+            logging.info(
+                "Failed to write missing tracks for %s, likely permission"
+                " issue",
+                playlist.name,
+            )
+    if (not missing_tracks) and userInputs.write_missing_as_csv:
+        try:
+            # Delete playlist created in prev run if no tracks are missing now
+            _delete_csv(playlist.name)
+            logging.info("Deleted old %s.csv", playlist.name)
+        except:
+            logging.info(
+                "Failed to delete %s.csv, likely permission issue",
+                playlist.name,
+            )

@@ -6,7 +6,7 @@ from plexapi.server import PlexServer
 
 from .helperClasses import Playlist, Track, UserInputs
 from .plex import update_or_create_plex_playlist
-
+from .jellyfin import update_or_create_jellyfin_playlist
 
 def _get_sp_user_playlists(
     sp: spotipy.Spotify, user_id: str, suffix: str = " - Spotify"
@@ -87,7 +87,7 @@ def _get_sp_tracks_from_playlist(
 
 
 def spotify_playlist_sync(
-    sp: spotipy.Spotify, plex: PlexServer, userInputs: UserInputs
+    sp: spotipy.Spotify, plex: PlexServer, jellyfin, userInputs: UserInputs
 ) -> None:
     """Create/Update plex playlists with playlists from spotify.
 
@@ -106,6 +106,9 @@ def spotify_playlist_sync(
             tracks = _get_sp_tracks_from_playlist(
                 sp, userInputs.spotify_user_id, playlist
             )
-            update_or_create_plex_playlist(plex, playlist, tracks, userInputs)
+            if plex is not None:
+                update_or_create_plex_playlist(plex, playlist, tracks, userInputs)
+            if jellyfin is not None:
+                update_or_create_jellyfin_playlist(jellyfin, playlist, tracks, userInputs)
     else:
         logging.error("No spotify playlists found for given user")

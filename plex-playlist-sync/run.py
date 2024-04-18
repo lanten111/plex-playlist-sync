@@ -1,11 +1,9 @@
 import logging
 import os
 import time
-import traceback
 
 import deezer
 import spotipy
-from jellyfin_api_client import AuthenticatedClient
 from jellyfinapi.jellyfinapi_client import JellyfinapiClient
 from plexapi.server import PlexServer
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -21,7 +19,7 @@ userInputs = UserInputs(
     plex_url=os.getenv("PLEX_URL"),
     plex_token=os.getenv("PLEX_TOKEN"),
     write_missing_as_csv=os.getenv("WRITE_MISSING_AS_CSV", "0") == "1",
-    append_service_suffix=os.getenv("APPEND_SERVICE_SUFFIX", "1") == "1",
+    append_service_suffix=os.getenv("APPEND_SERVICE_SUFFIX", "0") == "1",
     add_playlist_poster=os.getenv("ADD_PLAYLIST_POSTER", "1") == "1",
     add_playlist_description=os.getenv("ADD_PLAYLIST_DESCRIPTION", "1") == "1",
     append_instead_of_sync=os.getenv("APPEND_INSTEAD_OF_SYNC", False) == "1",
@@ -34,13 +32,14 @@ userInputs = UserInputs(
     jellyfin_url=os.getenv("JELLYFIN_URL"),
     jellyfin_token=os.getenv("JELLYFIN_TOKEN"),
     jellyfin_user=os.getenv("JELLYFIN_USER"),
+    yt_music_auth_file=os.getenv("YTMUSIC_AUTH_FILE"),
 )
 while True:
     logging.info("Starting playlist sync")
 
 
-    ########## PLEX MUSIC SYNC ##########
-
+    ########## PLEX AUTH ##########
+    logging.info("Starting plex auth")
     PL_AUTHSUCCESS = False
     if userInputs.plex_url and userInputs.plex_token:
         try:
@@ -51,7 +50,8 @@ while True:
     else:
         logging.error("Missing Plex Authorization Variables")
 
-    ########## JELLYFIN MUSIC SYNC ##########
+    ########## JELLYFIN AUTH ##########
+    logging.info("Starting jellyfin auth")
 
     JL_AUTHSUCCESS = False
     if userInputs.jellyfin_url and userInputs.jellyfin_token:
@@ -59,49 +59,15 @@ while True:
             jellyfin = JellyfinapiClient(x_emby_token=userInputs.jellyfin_token, server_url=userInputs.jellyfin_url)
             JL_AUTHSUCCESS = True
         except:
-            logging.error(traceback.format_exc())
+            logging.error("jellyfin Authorization error")
     else:
-        logging.error("Missing Plex Authorization Variables")
+        logging.error("Missing jellyfin Authorization Variables")
 
-
-    ########## YT MUSIC SYNC ##########
-
-    logging.info("Starting youtube music playlist sync")
-
-    YT_AUTHSUCCESS = False
-
-    if (
-            os.path.exists(userInputs.yt_music_auth_file)
-    ):
-        try:
-            yt = ytmusic = YTMusic(userInputs.yt_music_auth_file)
-            YT_AUTHSUCCESS = True
-        except:
-            logging.info("youtube Authorization error, skipping spotify sync")
-
-    else:
-        logging.info(
-            "Missing one or more youtube Authorization Variables, skipping"
-            " youtube sync"
-        )
-
-    if YT_AUTHSUCCESS:
-        if PL_AUTHSUCCESS and JL_AUTHSUCCESS:
-            ytmusic_playlist_sync(yt, plex, jellyfin, userInputs)
-        elif PL_AUTHSUCCESS and JL_AUTHSUCCESS is False:
-            ytmusic_playlist_sync(yt, plex, None, userInputs)
-        elif JL_AUTHSUCCESS and PL_AUTHSUCCESS is False:
-            ytmusic_playlist_sync(yt, None, jellyfin, userInputs)
-        else:
-            logging.error("Plex or jellyfin auth must be present")
-            break
-
-    logging.info("Spotify playlist sync complete")
 
 
     ########## SPOTIFY SYNC ##########
 
-    logging.info("Starting ytmusic playlist sync")
+    logging.info("Starting spotify playlist sync")
 
     SP_AUTHSUCCESS = False
 
@@ -128,16 +94,75 @@ while True:
         )
 
     if SP_AUTHSUCCESS:
-        spotify_playlist_sync(sp, plex, userInputs)
+        if PL_AUTHSUCCESS and JL_AUTHSUCCESS:
+            spotify_playlist_sync(sp, plex, jellyfin, userInputs)
+        elif PL_AUTHSUCCESS and JL_AUTHSUCCESS is False:
+            spotify_playlist_sync(sp, plex, None, userInputs)
+        elif JL_AUTHSUCCESS and PL_AUTHSUCCESS is False:
+            spotify_playlist_sync(sp, None, jellyfin, userInputs)
+        else:
+            logging.error("Plex or jellyfin auth must be present")
+            break
 
     logging.info("Spotify playlist sync complete")
+
+
+
+    ########## YT MUSIC SYNC ##########
+
+    logging.info("Starting youtube music playlist sync")
+    YT_AUTHSUCCESS = False
+
+    if (
+            os.path.exists(userInputs.yt_music_auth_file)
+    ):
+        try:
+            yt = ytmusic = YTMusic(userInputs.yt_music_auth_file)
+            YT_AUTHSUCCESS = True
+        except:
+            logging.info("youtube Authorization error, skipping ytmusic sync")
+
+    else:
+        logging.info(
+            "Missing one or more youtube Authorization Variables, skipping"
+            " youtube sync"
+        )
+
+    if YT_AUTHSUCCESS:
+        if PL_AUTHSUCCESS and JL_AUTHSUCCESS:
+            ytmusic_playlist_sync(yt, plex, jellyfin, userInputs)
+        elif PL_AUTHSUCCESS and JL_AUTHSUCCESS is False:
+            ytmusic_playlist_sync(yt, plex, None, userInputs)
+        elif JL_AUTHSUCCESS and PL_AUTHSUCCESS is False:
+            ytmusic_playlist_sync(yt, None, jellyfin, userInputs)
+        else:
+            logging.error("Plex or jellyfin auth must be present")
+            break
+
+    logging.info("ytmusic playlist sync complete")
 
     ########## DEEZER SYNC ##########
 
     logging.info("Starting Deezer playlist sync")
-    dz = deezer.Client()
-    deezer_playlist_sync(dz, plex, userInputs)
-    logging.info("Deezer playlist sync complete")
+    DZ_AUTHSUCCESS = False
+
+    if (
+        userInputs.deezer_user_id
+    ):
+        try:
+            dz = deezer.Client()
+            DZ_AUTHSUCCESS = True
+        except:
+            logging.info("deezer Authorization error, skipping deezer sync")
+
+    else:
+        logging.info(
+            "Missing one or more deezer Authorization Variables, skipping"
+            " deezer sync"
+        )
+    if DZ_AUTHSUCCESS:
+        deezer_playlist_sync(dz, plex, userInputs)
+        logging.info("Deezer playlist sync complete")
 
     logging.info("All playlist(s) sync complete")
     logging.info("sleeping for %s seconds" % userInputs.wait_seconds)
