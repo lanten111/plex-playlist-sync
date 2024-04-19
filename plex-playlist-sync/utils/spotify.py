@@ -59,7 +59,7 @@ def _get_sp_tracks_from_playlist(
         artist = track["track"]["artists"][0]["name"]
         album = track["track"]["album"]["name"]
         # Tracks may no longer be on spotify in such cases return ""
-        url = track["track"]["external_urls"].get("spotify", "")
+        url = track["track"]["id"]
         return Track(title, artist, album, url)
 
     sp_playlist_tracks = sp.user_playlist_tracks(user_id, playlist.id)

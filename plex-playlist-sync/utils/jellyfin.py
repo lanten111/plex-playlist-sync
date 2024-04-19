@@ -2,6 +2,7 @@ import csv
 import json
 import logging
 import pathlib
+import subprocess
 import sys
 from difflib import SequenceMatcher
 from typing import List
@@ -48,13 +49,14 @@ def _delete_csv(name: str, path: str = "/data") -> None:
     file.unlink()
 
 
-def _get_available_jellyfin_tracks(jellyfin, tracks: List[Track]) -> List:
+def _get_available_jellyfin_tracks(jellyfin, tracks: List[Track], userinputs) -> List:
 
     jellyfin_tracks, missing_tracks = [], []
     for track in tracks:
         search = []
         try:
             if track.title != "":
+                # logging.info("searching for ", track.title)
                 search = jellyfin.search.get(track.title, None, None, None, "Audio", None, "Audio", None, None, None, None, None, None, False, True, False, False, True)
         except Exception:
             logging.info("failed to search %s on jellyfin", track.title)
@@ -67,14 +69,14 @@ def _get_available_jellyfin_tracks(jellyfin, tracks: List[Track]) -> List:
                     if track_similarity <= 0.9:
                         continue
 
-                    if hasattr(s, 'album_artist') is not None:
+                    if hasattr(s, 'album_artist') != None:
                         artist_similarity = SequenceMatcher(None, s.album_artist.lower(), track.artist.lower()).quick_ratio()
                         if artist_similarity >= 0.9:
                             jellyfin_tracks.append(s.id)
                             found = True
                             break
 
-                    if s.album is not None:
+                    if s.album != None:
                         album_similarity = SequenceMatcher(None, s.album.lower(), track.album.lower()).quick_ratio()
                         if album_similarity >= 0.9:
                             jellyfin_tracks.append(s.id)
@@ -87,11 +89,17 @@ def _get_available_jellyfin_tracks(jellyfin, tracks: List[Track]) -> List:
                         " retrying with next result"
                     )
         if not found:
+            # download_song(userinputs, track)
             missing_tracks.append(track)
 
     return jellyfin_tracks, missing_tracks
 
+def download_song(userinputs: UserInputs, track):
+    command = ("ytmdl -q -o '/home/muhumbulom/PycharmProjects/plex-playlist-sync/download$Artist->Album->[Title]' --spotify-id '"
+               + track.url + "' --album '" + track.album + "' --artist '" + track.album + "' '" + track.title+"'")
 
+    # Execute the command
+    subprocess.run(command, shell=True)
 def _update_jellyfin_playlist(
     jellyfin,
     available_tracks: List,
@@ -145,7 +153,7 @@ def update_or_create_jellyfin_playlist(
     if user_id is None:
         raise ValueError("User not found")
 
-    available_tracks, missing_tracks = _get_available_jellyfin_tracks(jellyfin, tracks)
+    available_tracks, missing_tracks = _get_available_jellyfin_tracks(jellyfin, tracks, userInputs)
     if available_tracks:
         search = jellyfin.search.get(playlist.name, None, None, user_id, "Playlist", None, "Audio", None, None, None, None, None,
                                      None, False, True, False, False, True)

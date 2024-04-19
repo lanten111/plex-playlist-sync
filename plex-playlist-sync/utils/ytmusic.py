@@ -41,7 +41,7 @@ def _get_yt_tracks_from_playlist(yt, playlist: Playlist) -> List[Track]:
             album = track["album"]["name"]
         else:
             album = ""
-        url = ""
+        url = "https://music.youtube.com/watch?v="+track['videoId']
         return Track(title, artist, album, url)
 
     # return all tracks in a playlist
